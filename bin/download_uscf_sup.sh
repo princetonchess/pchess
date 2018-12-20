@@ -1,0 +1,1 @@
+ for year in {08..18}; do   for month in {01..12}; do   yr=`printf "%02d" $year`; mn=`printf "%02d" $month`; https://secure2.uschess.org/supplements/RSQ${yr}${mn}T.zip; done; done  

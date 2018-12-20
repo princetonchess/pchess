@@ -1,0 +1,1 @@
+for f in `ls *zip`; do    o=`echo $f|sed s/\.zip//g |sed s/RSQ//g|sed s/T//g`; echo $o; unzip $f -d ../unzipped/$o;done
