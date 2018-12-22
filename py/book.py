@@ -1,6 +1,7 @@
 import chess.polyglot
+import struct, mmap, os
 
-BookEntryStruct = struct.Struct('>QHFIFI')
+BookEntryStruct = struct.Struct('>QHfIfI')
 
 class MmapReader(object):
     def __init__(self, filename):

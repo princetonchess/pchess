@@ -1,8 +1,5 @@
-import logging, chess, collections
-from chess import pgn,polyglot,uci
 from optparse import OptionParser
-from IPython.core.debugger import Pdb
-pdb = Pdb()
+from chessutil import *
 
 p = OptionParser(usage="usage: %prog [options]")
 p.add_option('-r','--repertoire',dest='repertoire',  metavar='REPERTOIRE', default = 'd:/newchess/opening/repertoire/test.pgn')
@@ -11,25 +8,6 @@ p.add_option('-d','--debug'     ,dest='debug', metavar='DEBUG', default = False)
 opts, args = p.parse_args()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(threadName)s %(message)s')
-
-def traverse_pgn(pgnfile, process_game_func, rethrow=False, **kargs):
-    '''traverse pgn file, for each game, invoke func if it passes the filter'''
-    ### TODO: honor kargs: minrating(>), ecos(>), players(regex), nags (in)
-    logging.info('traversing file {0}'.format(pgnfile))
-    n = 0
-    with open(pgnfile) as pgn:
-        while True:
-            try:
-                g = chess.pgn.read_game(pgn)
-                if g is None: break
-                n += 1
-                if n % 1000 == 0: logging.info("scanned {0} games".format(n))
-                process_game_func(g)
-            except IndexError as e:
-                logging.info('out of index error {0}'.format(str(e)))
-                if rethrow: raise
-                
-        logging.info('traversed {0} games'.format(n))
 
 def lineToGame(line):
     ''' with list of game nodes'''
