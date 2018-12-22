@@ -47,6 +47,12 @@ loadtokdb:{
  `top100 set get` sv datadir,`top100;
  }
 
+appendsup:{[m]
+ if[0<n:count select from sup where month=m; 'string[n]," rows exists for month ", string m];
+ m:`$except[2 _ string m;"."]; 
+ .[` sv datadir,`sup;();,; ] parsesup` sv supdir, m,`$"RSQ",string[m], "T.TXT";
+ }
+
 loadtokdb[]
 
 delta:{0^(0^x[-1]),1 _ x:deltas x}
