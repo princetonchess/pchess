@@ -66,35 +66,26 @@ class testUtil(unittest.TestCase):
 
 class TestBook(unittest.TestCase):
     bookpath = '/tmp/testbook.bin'
-    startpos_key = chess.polyglot.zobrist_hash(chess.Board())
+    startpos = chess.Board()
 
     def setUp(self):
         self._loadpgn_to_book()
 
-    def _go_over_game(self, game, **kwargs):
-        maxply = kwargs.get('maxply', 60)
-        node = game
-        gi = gameinfo(game)
-        i = 0
-        while node.variations:
-            nextnode = node.variations[0]
-            if i <= maxply:
-                self.bookbuilder.upd(node.board(), nextnode.move, gi['result'], gi['elos'])
-            node = nextnode
-            i += 1
-
     def _loadpgn_to_book(self):
         if os.path.exists(self.bookpath):  os.remove(self.bookpath)
         self.bookbuilder = BookBuilder(self.bookpath)
-        traverse_pgn('testdata/c02.pgn', self._go_over_game, False, maxply=10)
+        self.bookbuilder.load_pgn('testdata/c02.pgn', maxply=10)
         self.bookbuilder.persist()
         
     def test_book_base(self):
         book = BookReader(self.bookpath)
-        for e in book:
-            print(e)
+        for e in book:  print(e)
 
-        self.assertTrue('FoO'.isupper())
+        # only e4 from startpos in c02
+        entries = list(book.find_all(self.startpos))
+        self.assertGreater(len(entries), 0)
+        entry = entries[0]
+        self.assertEqual(entry.n, 3)
 
 if __name__ == '__main__':
     unittest.main()

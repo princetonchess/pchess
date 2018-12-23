@@ -1,5 +1,6 @@
 import chess.polyglot
 import struct, mmap, os, collections, logging
+from chessutil import *
 import pdb
 BookEntryStruct = struct.Struct('>QHIfIf')
 
@@ -7,7 +8,8 @@ class BookEntry(collections.namedtuple("BookEntry", "key raw_move n perf mastern
     """An entry from a Polyglot opening book."""
     __slots__ = ()
     def move(self):
-        return chess.Move(self.raw_move & 0x3f, (self.raw_move >>6) & 0x3f, (self.raw_move >>12) & 0x7)
+        promotion = (self.raw_move >>12) & 0x7
+        return chess.Move(self.raw_move & 0x3f, (self.raw_move >>6) & 0x3f, promotion + 1 if promotion else None)
     def __str__(self):
         return '{}: {} - n:{} {} mastern:{} {}'.format(self.key, self.move(), self.n, self.perf, self.mastern, self.masterperf)
 
@@ -45,7 +47,7 @@ class BookReader(object):
         hi = len(self)
         while lo < hi:
             mid = (lo + hi) // 2
-            mid_key, _, _, _ = BookEntryStruct.unpack_from(self.mmap, mid * BookEntryStruct.size)
+            mid_key, _, _, _, _, _ = BookEntryStruct.unpack_from(self.mmap, mid * BookEntryStruct.size)
             if mid_key < key:
                 lo = mid + 1
             else:
@@ -60,6 +62,7 @@ class BookReader(object):
             key = chess.polyglot.zobrist_hash(board)
 
         i = self.bisect_key_left(key)
+        #pdb.set_trace()
         size = len(self)
 
         while i < size:
@@ -67,7 +70,7 @@ class BookReader(object):
             i += 1
             if entry.key != key:                   
                 break
-            if board and board.is_legal(move): 
+            if board and board.is_legal(entry.move()): 
                 yield entry
 
     def close(self):
@@ -83,6 +86,21 @@ class BookBuilder():
         self.filename = filename
         self.nentries = 0
 
+    def load_pgn(self, pgnfile, **kwargs):
+        traverse_pgn(pgnfile, self.go_over_game, False, **kwargs)
+        
+    def go_over_game(self, game, **kwargs):
+        maxply = kwargs.get('maxply', 60)
+        node = game
+        gi = gameinfo(game)
+        i = 0
+        while node.variations:
+            nextnode = node.variations[0]
+            if i <= maxply:
+                self.upd(node.board(), nextnode.move, gi['result'], gi['elos'])
+            node = nextnode
+            i += 1
+        
     def upd(self, board, move, res, elos):
         ''' update the book with move and result of the game 
         '''
@@ -140,18 +158,5 @@ class BookBuilder():
 
     def __exit__(self, exc_type, exc_value, traceback):
         return self.persist()
-
-## TODO
-def merge_books(file1, file2, tofile):
-    b1 = BookReader(file1)
-    b2 = BookReader(file2)
-    fd = os.open(tofile, os.O_WRONLY | os.O_BINARY if hasattr(os, "O_BINARY") else os.O_RDONLY)
-    mmap = mmap.mmap(self.fd, 0, access=mmap.ACCESS_WRITE)
-
-def create_repertoire(bookpath, line, **kwargs):
-    '''give line and bookpath, create repertoire 
-    kwargs: maxply=40 min_mastern=10 sideline_tolerance=0.15
-    '''
-    pass
 
 
