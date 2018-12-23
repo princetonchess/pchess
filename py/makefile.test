@@ -1,0 +1,22 @@
+TESTS = book-test
+##\
+
+.PHONY: all clean
+
+## this append .OK to each test names
+all:$(TESTS:=.OK)
+
+default: all
+
+PYTHON=/opt/local/bin/python
+
+%.OK: TAG=$(@:.OK=)
+%.OK: ACTUAL=actual/$(TAG).actual
+%.OK: EXPECTED=expected/$(TAG).expected
+
+%.OK:
+    @ $(PYTHON) ../tests.py local -c $(TAG).py -t $(DATADIR)/base -d 20150601:20150602 > $(ACTUAL)
+    @ diff -q $(ACTUAL) $(EXPECTED) && echo $@
+
+
+
