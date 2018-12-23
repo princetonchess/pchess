@@ -9,7 +9,7 @@ class BookEntry(collections.namedtuple("BookEntry", "key raw_move n perf mastern
     __slots__ = ()
     def move(self):
         promotion = (self.raw_move >>12) & 0x7
-        return chess.Move(self.raw_move & 0x3f, (self.raw_move >>6) & 0x3f, promotion + 1 if promotion else None)
+        return chess.Move(self.raw_move & 0x3f, (self.raw_move >>6) & 0x3f, promotion if promotion else None)
     def __str__(self):
         return '{}: {} - n:{} {} mastern:{} {}'.format(self.key, self.move(), self.n, self.perf, self.mastern, self.masterperf)
 
