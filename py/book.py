@@ -1,9 +1,17 @@
 import chess.polyglot
-import struct, mmap, os
+import struct, mmap, os, collections, logging
+import pdb
+BookEntryStruct = struct.Struct('>QHIfIf')
 
-BookEntryStruct = struct.Struct('>QHfIfI')
+class BookEntry(collections.namedtuple("BookEntry", "key raw_move n perf mastern masterperf")):
+    """An entry from a Polyglot opening book."""
+    __slots__ = ()
+    def move(self):
+        return chess.Move(self.raw_move & 0x3f, (self.raw_move >>6) & 0x3f, (self.raw_move >>12) & 0x7)
+    def __str__(self):
+        return '{}: {} - n:{} {} mastern:{} {}'.format(self.key, self.move(), self.n, self.perf, self.mastern, self.masterperf)
 
-class MmapReader(object):
+class BookReader(object):
     def __init__(self, filename):
         try:
             self.fd = os.open(filename, os.O_RDONLY | os.O_BINARY if hasattr(os, "O_BINARY") else os.O_RDONLY)
@@ -12,21 +20,18 @@ class MmapReader(object):
             self.mmap = None
 
     def __enter__(self):  return self
-
     def __exit__(self, exc_type, exc_value, traceback):   return self.close()
-
     def __len__(self): return 0 if self.mmap is None else self.mmap.size() // BookEntryStruct.size
 
     def __getitem__(self, key):
-        if self.mmap is None:   raise IndexError()
+        if self.mmap is None:  raise IndexError()
         if key < 0:  key = len(self) + key
-
         try:
-            key, raw_move, weight, learn = ENTRY_STRUCT.unpack_from(self.mmap, key * ENTRY_STRUCT.size)
+            key, raw_move, n, perf, mastern, masterperf = BookEntryStruct.unpack_from(self.mmap, key * BookEntryStruct.size)
         except struct.error:
             raise IndexError()
 
-        return Entry(key, raw_move, weight, learn)
+        return BookEntry(key, raw_move, n, perf, mastern, masterperf)
 
     def __iter__(self):
         i = 0
@@ -38,27 +43,21 @@ class MmapReader(object):
     def bisect_key_left(self, key):
         lo = 0
         hi = len(self)
-
         while lo < hi:
             mid = (lo + hi) // 2
-            mid_key, _, _, _ = ENTRY_STRUCT.unpack_from(self.mmap, mid * ENTRY_STRUCT.size)
+            mid_key, _, _, _ = BookEntryStruct.unpack_from(self.mmap, mid * BookEntryStruct.size)
             if mid_key < key:
                 lo = mid + 1
             else:
                 hi = mid
-
         return lo
 
-    def __contains__(self, entry):
-        return any(current == entry for current in self.find_all(entry.key, entry.weight))
-
-    def find_all(self, board, minimum_weight=1, exclude_moves=()):
-        """Seeks a specific position and yields corresponding entries."""
+    def find_all(self, board):
+        """with hash key, Seeks a specific position and yields corresponding entries."""
         try:
             key = int(board)
-            board = None
         except (TypeError, ValueError):
-            key = zobrist_hash(board)
+            key = chess.polyglot.zobrist_hash(board)
 
         i = self.bisect_key_left(key)
         size = len(self)
@@ -66,32 +65,47 @@ class MmapReader(object):
         while i < size:
             entry = self[i]
             i += 1
-
-            if entry.key != key:                break
-            if entry.weight < minimum_weight:   continue
-
-            if board:                move = entry.move(chess960=board.chess960)
-            elif exclude_moves:      move = entry.move()
-
-            if exclude_moves and move in exclude_moves:      continue
-            if board and not board.is_legal(move):           continue
-
-            yield entry
+            if entry.key != key:                   
+                break
+            if board and board.is_legal(move): 
+                yield entry
 
     def close(self):
         if self.mmap is not None:   self.mmap.close()
         try:      os.close(self.fd)
         except OSError:     pass
 
+
 class BookBuilder():
-    def __init__(self, mmap_file_path, inmem_thres=10000):
+    def __init__(self, filename, inmem_thres=10000):
         ''' flush to mmamp if len of inmem is over inmem_thres'''
         self.inmem = {}
         self.inmemthres = inmem_thres
-        self.mmap = MmapReader(mmap_file_path)
+        if os.path.exists('filename'):
+            raise 'file exists {}'.format(filename)
+        self.filename = filename
+        self.nentries = 0
 
-    def _ismaster(self, elos, thres=2400):
-        return elos[0]>=thres and elos[1]>=thres
+    def upd(self, board, move, res, elos):
+        ''' update the book with move and result of the game 
+        '''
+        h = chess.polyglot.zobrist_hash(board)
+        m = self._pack_move(move)
+        ismaster = self._ismaster(board, elos)
+        initstate = [1, res, 1 if ismaster else 0, res if ismaster else 0.5]
+        if h in self.inmem:
+            d = self.inmem[h]
+            if m in d:
+                self._updstats(d[m], res, ismaster) ##TODO see if it's update inplace
+            else:
+                d[m] = initstate
+                self.nentries +=1
+        else:
+            self.inmem[h] = {m:initstate}
+            self.nentries +=1
+
+    def _ismaster(self, board, elos, thres=2400):
+        return elos[0]>=thres if board.turn else elos[1]>=thres
 
     def _updres(self, n, perf, res):
         return (n*perf + res) / (n+1)
@@ -100,51 +114,40 @@ class BookBuilder():
         dm[1] = self._updres(dm[0], dm[1] , res)
         dm[0] += 1
         if ismaster:
-            dm[3] = self.updres(dm[2], dm[3], res)
+            dm[3] = self._updres(dm[2], dm[3], res)
             dm[2] += 1
-    
-    def upd(self, board, move, res, elos):
-        ''' update the book with move and result of the game 
-        '''
-        h = int(board)
-        m = self._pack_move(move)
-        ismaster = self._ismaster(elos)
-        initstate = [1, res, 1 if ismaster else 0, res if master else 0.5]
-        if h in self.inmem:
-            d = self.inmem[h]
-            if m in d:
-                self._updstats(d[m], res, ismaster) ##TODO see if it's update inplace
-            else:
-                d[m] = initstate
-        else:
-            self.inmem[h] = {m:initstate}
-
-        if len(self.inmem)>self.inmem_thres:    self._persist()
 
     def _pack_move(self, m):
         ''' persist move, not following polyglot twisted way'''
-        if not chessmove:  return None  ## null move, don't insert to book
+        if not m:  return None  ## null move, don't insert to book
         r = (m.to_square << 6) | m.from_square
         return r if m.promotion is None else (m.promotion << 12) | r
 
-    def unpack_move(self, h):
-        return chess.Move(h & 0x3f, (h >>6) & 0x3f, (h >>12) & 0x7)
-
-    def _persist(self):
+    def persist(self):
         ''' merge inmem and mmap '''
-        logging.info('flush stats from memory into disk {} {}'.format(len(self.inmem), len(self.mmap)))
+        logging.info('flush stats from memory into disk {}'.format(self.nentries))
+        with open(self.filename, "wb") as f: # write empty file required by mmap
+            f.write((self.nentries * BookEntryStruct.size) *b'\0')
 
-        # get a distinct set of keys from inmem and mmap, sort by hash,move, then, open a new mmap to write
-        # the keys shouldn't occupy too much ram since it's only a list, not dict
-        # traverse the existing mmap, merge stats with inmem dict if necessary, then write to mmap
-        # rename prev mmap to be .prev, rename new mmap to the main file name, re-open it as read only
-        # clear the inmem dict, watch out for memory, it shouldn't grow 
+        flags = os.O_CREAT | os.O_RDWR
+        self.fd = os.open(self.filename, flags | os.O_BINARY if hasattr(os, "O_BINARY") else flags)
+        self.mmap = mmap.mmap(self.fd, 0, access=mmap.ACCESS_WRITE)
+
+        i = 0
+        for k in sorted(self.inmem):
+            for m,entry in self.inmem[k].items():
+                n, perf, mastern, masterperf = entry
+                BookEntryStruct.pack_into(self.mmap, BookEntryStruct.size * i, k, m, n, float(perf), mastern, float(masterperf))
+                i += 1
+
+        os.close(self.fd)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        return self._persist()
+        return self.persist()
 
-'''
-struct.pack(struct.Struct(">H"), 
-struct.unpack('H', struct.pack('H', 60.12))
-ENTRY_STRUCT = struct.Struct(">QHHI")
-'''
+## TODO
+def merge_books(file1, file2, tofile):
+    b1 = BookReader(file1)
+    b2 = BookReader(file2)
+    fd = os.open(tofile, os.O_WRONLY | os.O_BINARY if hasattr(os, "O_BINARY") else os.O_RDONLY)
+    mmap = mmap.mmap(self.fd, 0, access=mmap.ACCESS_WRITE)
