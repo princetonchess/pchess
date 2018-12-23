@@ -77,12 +77,9 @@ class BookReader(object):
 
 
 class BookBuilder():
-    def __init__(self, filename, inmem_thres=10000):
-        ''' flush to mmamp if len of inmem is over inmem_thres'''
+    def __init__(self, filename):
         self.inmem = {}
-        self.inmemthres = inmem_thres
-        if os.path.exists('filename'):
-            raise 'file exists {}'.format(filename)
+        if os.path.exists('filename'):   raise 'file exists {}'.format(filename)
         self.filename = filename
         self.nentries = 0
 
@@ -139,7 +136,6 @@ class BookBuilder():
                 n, perf, mastern, masterperf = entry
                 BookEntryStruct.pack_into(self.mmap, BookEntryStruct.size * i, k, m, n, float(perf), mastern, float(masterperf))
                 i += 1
-
         os.close(self.fd)
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -151,3 +147,11 @@ def merge_books(file1, file2, tofile):
     b2 = BookReader(file2)
     fd = os.open(tofile, os.O_WRONLY | os.O_BINARY if hasattr(os, "O_BINARY") else os.O_RDONLY)
     mmap = mmap.mmap(self.fd, 0, access=mmap.ACCESS_WRITE)
+
+def create_repertoire(bookpath, line, **kwargs):
+    '''give line and bookpath, create repertoire 
+    kwargs: maxply=40 min_mastern=10 sideline_tolerance=0.15
+    '''
+    pass
+
+
