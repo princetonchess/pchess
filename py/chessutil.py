@@ -38,7 +38,7 @@ def traverse_pgn(pgnfile, process_game_func, rethrow=False, **kwargs):
                 if minrating:
                     elos = gi.get('elos', None)
                     if elos is None: continue
-                    if any([elo<minrating for elo in elos]): continue
+                    if any([elo is None or elo<minrating for elo in elos]): continue
                 if ecos:
                     eco = gi.get('eco', None)
                     if (eco is None) or (not eco in ecos): continue

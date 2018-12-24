@@ -42,6 +42,10 @@ class BookReader(object):
             yield self[i]
             i += 1
 
+    def print(self):
+        for entry in self:
+            print(entry)
+        
     def bisect_key_left(self, key):
         lo = 0
         hi = len(self)
@@ -53,6 +57,21 @@ class BookReader(object):
             else:
                 hi = mid
         return lo
+
+    def find(self, key, move):
+        ''' locate entry with hashkey and move'''
+        i = self.bisect_key_left(key)
+        #pdb.set_trace()
+        size = len(self)
+
+        while i < size:
+            entry = self[i]
+            i += 1
+            if entry.key != key:
+                return None
+            if entry.raw_move == move:                   
+                return entry
+                
 
     def find_all(self, board):
         """with hash key, Seeks a specific position and yields corresponding entries."""
@@ -82,7 +101,8 @@ class BookReader(object):
 class BookBuilder():
     def __init__(self, filename):
         self.inmem = {}
-        if os.path.exists('filename'):   raise 'file exists {}'.format(filename)
+        if os.path.exists('filename'):
+            logging.info('book file exists {}, overriding'.format(filename))
         self.filename = filename
         self.nentries = 0
 
@@ -155,8 +175,7 @@ class BookBuilder():
                 BookEntryStruct.pack_into(self.mmap, BookEntryStruct.size * i, k, m, n, float(perf), mastern, float(masterperf))
                 i += 1
         os.close(self.fd)
-
+        
+    def __enter__(self):  return self
     def __exit__(self, exc_type, exc_value, traceback):
         return self.persist()
-
-
