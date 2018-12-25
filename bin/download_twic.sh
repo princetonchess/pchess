@@ -6,9 +6,5 @@ then
   mkdir -p  $zipdir/../pgn
 fi
 
-cd $zipdir
-for i in {1233..1258}
-do
-	wget http://www.theweekinchess.com/zips/twic${i}g.zip
-	unzip twic${i}g.zip -d ../pgn/
-done
+wget http://www.theweekinchess.com/zips/twic${1}g.zip
+unzip twic${1}g.zip -d ../pgn/

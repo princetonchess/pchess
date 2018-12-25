@@ -48,7 +48,18 @@ def mergebooks_command(file1, file2, tofile):
         BookEntryStruct.pack_into(bookmmap, BookEntryStruct.size * i, k, m, e.n, e.perf, e.mastern, e.masterperf)
         i += 1
     os.close(fd)
-        
+
+
+def buildbooksbyyear_command(indir, outdir, max_ply=60):
+    '''slurp in all pgn from indir, generate corresponding book to outdir '''
+    infiles = os.listdir(indir)
+    outfiles = ['{}/{}'.format(outdir, os.path.basename(f).replace('pgn','book')) for f in infiles if f.endswith('.pgn')]
+    for pgnfile,bookfile in zip([os.path.join(indir, f) for f in infiles], outfiles):
+        print(pgnfile, bookfile)
+        with BookBuilder(bookfile) as bookbuilder:
+            ## load multiple pgn if needed
+            bookbuilder.load_pgn(pgnfile, maxply=max_ply)
+    
         
 if __name__ == '__main__':
     import scriptine

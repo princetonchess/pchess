@@ -13,11 +13,11 @@ def gameinfo(game):
     h = {k.lower():v for k,v in game.headers.items()}
     h['result'] = resultmap.get(h.get('result', '1/2-1/2'), 0.5)
     h['elos'] = [_toint(h.get('{}elo'.format(s), None)) for s in ['white','black']]
-    h['eventdate'] = _todate(h.get('eventdate', None))
+    ## h['eventdate'] = _todate(h.get('eventdate', None))
     return h
 
 def traverse_pgn(pgnfile, process_game_func, rethrow=False, **kwargs):
-    logging.info('traversing file {0}'.format(pgnfile))
+    print('traversing file {0}'.format(pgnfile))
     with open(pgnfile) as pgn:
         minrating = _toint(kwargs.get('minrating'))
         ecos = kwargs.get('ecos')

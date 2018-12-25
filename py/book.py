@@ -140,7 +140,7 @@ class BookBuilder():
             self.nentries +=1
 
     def _ismaster(self, board, elos, thres=2400):
-        return elos[0]>=thres if board.turn else elos[1]>=thres
+        return (False if elos[0] is None else elos[0]>=thres) if board.turn else (False if elos[1] is None else elos[1]>=thres)
 
     def _updres(self, n, perf, res):
         return (n*perf + res) / (n+1)
